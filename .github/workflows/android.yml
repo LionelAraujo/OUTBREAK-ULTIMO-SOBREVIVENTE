@@ -57,11 +57,40 @@ jobs:
           test -f ~/.config/godot/editor_settings-4.3.tres
           test -d ~/.local/share/godot/export_templates/4.3.stable
 
-          echo "Ambiente Android preparado."
+          echo "Ambiente Godot Android preparado."
+
+      - name: Instalar Android SDK 34
+        run: |
+          export ANDROID_HOME="/usr/lib/android-sdk"
+          export ANDROID_SDK_ROOT="/usr/lib/android-sdk"
+
+          export PATH="$ANDROID_HOME/cmdline-tools/cmdline-tools/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
+
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "Instalando componentes Android necessários..."
+
+          yes | sdkmanager --licenses >/dev/null || true
+
+          sdkmanager \
+            "platform-tools" \
+            "build-tools;34.0.0" \
+            "platforms;android-34" \
+            "cmdline-tools;latest"
+
+          echo "Android SDK configurado."
+
+          echo "Build Tools instalados:"
+          ls -d "$ANDROID_HOME/build-tools/"* || true
+
+          echo "Plataformas instaladas:"
+          ls -d "$ANDROID_HOME/platforms/"* || true
 
       - name: Verificar configuração Android
         run: |
           cd "$PROJECT_DIR"
+
+          export ANDROID_HOME="/usr/lib/android-sdk"
+          export ANDROID_SDK_ROOT="/usr/lib/android-sdk"
 
           echo "Verificando projeto..."
 
@@ -72,13 +101,23 @@ jobs:
           grep -q 'gradle_build/use_gradle_build=false' export_presets.cfg
           grep -q 'architectures/arm64-v8a=true' export_presets.cfg
 
+          test -d "$ANDROID_HOME/build-tools/34.0.0"
+          test -d "$ANDROID_HOME/platforms/android-34"
+
           echo "Configuração Android OK."
 
       - name: Compilar APK
         run: |
           cd "$PROJECT_DIR"
 
+          export ANDROID_HOME="/usr/lib/android-sdk"
+          export ANDROID_SDK_ROOT="/usr/lib/android-sdk"
+
+          export PATH="$ANDROID_HOME/cmdline-tools/cmdline-tools/bin:$ANDROID_HOME/platform-tools:$PATH"
+
           mkdir -p build/android
+
+          echo "Iniciando exportação do APK..."
 
           godot \
             --headless \
@@ -97,7 +136,10 @@ jobs:
             exit 1
           fi
 
-          echo "APK gerado com sucesso:"
+          echo "========================================"
+          echo "APK GERADO COM SUCESSO!"
+          echo "========================================"
+
           ls -lh build/android/OUTBREAK_ULTIMO_SOBREVIVENTE.apk
 
       - name: Disponibilizar APK
