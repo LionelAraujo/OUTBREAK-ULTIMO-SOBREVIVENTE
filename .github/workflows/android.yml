@@ -49,6 +49,24 @@ jobs:
 
           echo "Ambiente Android preparado."
 
+      - name: Instalar template Gradle Android
+        run: |
+          cd "$PROJECT_DIR"
+
+          godot --headless \
+            --editor \
+            --quit \
+            --path .
+
+          mkdir -p android/build
+
+          godot --headless \
+            --path . \
+            --editor \
+            --quit
+
+          echo "Template Gradle Android preparado."
+
       - name: Compilar APK
         run: |
           cd "$PROJECT_DIR"
@@ -60,6 +78,15 @@ jobs:
             --export-debug \
             "Android" \
             "build/android/OUTBREAK_ULTIMO_SOBREVIVENTE.apk"
+
+      - name: Verificar APK
+        if: success()
+        run: |
+          cd "$PROJECT_DIR"
+
+          ls -lh build/android/OUTBREAK_ULTIMO_SOBREVIVENTE.apk
+
+          test -f build/android/OUTBREAK_ULTIMO_SOBREVIVENTE.apk
 
       - name: Disponibilizar APK
         if: success()
