@@ -1,0 +1,65 @@
+name: Criar APK Android
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-android:
+    name: Compilar APK
+    runs-on: ubuntu-24.04
+
+    container:
+      image: barichello/godot-ci:4.3
+
+    steps:
+      - name: Baixar arquivos do projeto
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Preparar projeto
+        run: |
+          mkdir -p /tmp/outbreak
+          unzip -q OUTBREAK_ULTIMO_SOBREVIVENTE_Godot.zip -d /tmp/outbreak
+
+          PROJECT_DIR="$(dirname "$(find /tmp/outbreak -name project.godot -print -quit)")"
+
+          echo "Projeto encontrado em: $PROJECT_DIR"
+
+          cp export_presets.cfg "$PROJECT_DIR/export_presets.cfg"
+
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
+      - name: Preparar exportação Android
+        run: |
+          mkdir -p "$PROJECT_DIR/build/android"
+
+          mkdir -p ~/.config/
+          if [ -d /root/.config/godot ]; then
+            cp -r /root/.config/godot ~/.config/
+          fi
+
+          mkdir -p ~/.local/share/godot/export_templates/
+          if [ -d "/root/.local/share/godot/export_templates/4.3.stable" ]; then
+            cp -r /root/.local/share/godot/export_templates/4.3.stable \
+              ~/.local/share/godot/export_templates/
+          fi
+
+      - name: Compilar APK
+        run: |
+          cd "$PROJECT_DIR"
+
+          godot --headless \
+            --verbose \
+            --export-debug \
+            "Android" \
+            "build/android/OUTBREAK_ULTIMO_SOBREVIVENTE.apk"
+
+      - name: Disponibilizar APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: OUTBREAK-ULTIMO-SOBREVIVENTE-APK
+          path: ${{ env.PROJECT_DIR }}/build/android/OUTBREAK_ULTIMO_SOBREVIVENTE.apk
