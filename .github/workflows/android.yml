@@ -33,24 +33,27 @@ jobs:
 
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
-      - name: Preparar exportação Android
+      - name: Configurar Godot para Android
         run: |
-          mkdir -p "$PROJECT_DIR/build/android"
+          mkdir -p ~/.config
+          rm -rf ~/.config/godot
+          cp -a /root/.config/godot ~/.config/godot
 
-          mkdir -p ~/.config/
-          if [ -d /root/.config/godot ]; then
-            cp -r /root/.config/godot ~/.config/
-          fi
+          mkdir -p ~/.local/share/godot/export_templates
+          rm -rf ~/.local/share/godot/export_templates/4.3.stable
+          cp -a /root/.local/share/godot/export_templates/4.3.stable \
+            ~/.local/share/godot/export_templates/4.3.stable
 
-          mkdir -p ~/.local/share/godot/export_templates/
-          if [ -d "/root/.local/share/godot/export_templates/4.3.stable" ]; then
-            cp -r /root/.local/share/godot/export_templates/4.3.stable \
-              ~/.local/share/godot/export_templates/
-          fi
+          test -f ~/.config/godot/editor_settings-4.3.tres
+          test -d ~/.local/share/godot/export_templates/4.3.stable
+
+          echo "Ambiente Android preparado."
 
       - name: Compilar APK
         run: |
           cd "$PROJECT_DIR"
+
+          mkdir -p build/android
 
           godot --headless \
             --verbose \
@@ -59,6 +62,7 @@ jobs:
             "build/android/OUTBREAK_ULTIMO_SOBREVIVENTE.apk"
 
       - name: Disponibilizar APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: OUTBREAK-ULTIMO-SOBREVIVENTE-APK
