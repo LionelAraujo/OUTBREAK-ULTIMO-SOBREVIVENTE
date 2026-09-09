@@ -23,9 +23,15 @@ jobs:
       - name: Preparar projeto
         run: |
           mkdir -p /tmp/outbreak
+
           unzip -q OUTBREAK_ULTIMO_SOBREVIVENTE_Godot.zip -d /tmp/outbreak
 
           PROJECT_DIR="$(dirname "$(find /tmp/outbreak -name project.godot -print -quit)")"
+
+          if [ -z "$PROJECT_DIR" ] || [ ! -f "$PROJECT_DIR/project.godot" ]; then
+            echo "ERRO: project.godot não encontrado."
+            exit 1
+          fi
 
           echo "Projeto encontrado em: $PROJECT_DIR"
 
@@ -37,11 +43,15 @@ jobs:
         run: |
           mkdir -p ~/.config
           rm -rf ~/.config/godot
+
           cp -a /root/.config/godot ~/.config/godot
 
           mkdir -p ~/.local/share/godot/export_templates
+
           rm -rf ~/.local/share/godot/export_templates/4.3.stable
-          cp -a /root/.local/share/godot/export_templates/4.3.stable \
+
+          cp -a \
+            /root/.local/share/godot/export_templates/4.3.stable \
             ~/.local/share/godot/export_templates/4.3.stable
 
           test -f ~/.config/godot/editor_settings-4.3.tres
@@ -53,19 +63,44 @@ jobs:
         run: |
           cd "$PROJECT_DIR"
 
-          godot --headless \
+          echo "Instalando template Gradle Android..."
+
+          godot \
+            --headless \
             --editor \
             --quit \
-            --path .
-
-          mkdir -p android/build
-
-          godot --headless \
             --path . \
-            --editor \
-            --quit
+            --install-android-build-template
 
-          echo "Template Gradle Android preparado."
+          if [ ! -f "android/build.gradle" ]; then
+            echo "ERRO: template Gradle não foi instalado."
+            echo "Conteúdo da pasta android:"
+            find android -maxdepth 3 -type f -print 2>/dev/null || true
+            exit 1
+          fi
+
+          echo "Template Gradle Android instalado com sucesso."
+
+          echo "Arquivos do template:"
+          find android -maxdepth 2 -type f -print | head -50
+
+      - name: Verificar configuração Android
+        run: |
+          cd "$PROJECT_DIR"
+
+          echo "Verificando projeto..."
+
+          test -f project.godot
+          test -f export_presets.cfg
+          test -f android/build.gradle
+
+          grep -q 'name="Android"' export_presets.cfg
+          grep -q 'gradle_build/use_gradle_build=true' export_presets.cfg
+          grep -q 'gradle_build/min_sdk="23"' export_presets.cfg
+          grep -q 'gradle_build/target_sdk="33"' export_presets.cfg
+          grep -q 'architectures/arm64-v8a=true' export_presets.cfg
+
+          echo "Configuração Android OK."
 
       - name: Compilar APK
         run: |
@@ -73,7 +108,8 @@ jobs:
 
           mkdir -p build/android
 
-          godot --headless \
+          godot \
+            --headless \
             --verbose \
             --export-debug \
             "Android" \
@@ -84,9 +120,13 @@ jobs:
         run: |
           cd "$PROJECT_DIR"
 
-          ls -lh build/android/OUTBREAK_ULTIMO_SOBREVIVENTE.apk
+          if [ ! -f "build/android/OUTBREAK_ULTIMO_SOBREVIVENTE.apk" ]; then
+            echo "ERRO: APK não foi gerado."
+            exit 1
+          fi
 
-          test -f build/android/OUTBREAK_ULTIMO_SOBREVIVENTE.apk
+          echo "APK gerado com sucesso:"
+          ls -lh build/android/OUTBREAK_ULTIMO_SOBREVIVENTE.apk
 
       - name: Disponibilizar APK
         if: success()
@@ -94,3 +134,4 @@ jobs:
         with:
           name: OUTBREAK-ULTIMO-SOBREVIVENTE-APK
           path: ${{ env.PROJECT_DIR }}/build/android/OUTBREAK_ULTIMO_SOBREVIVENTE.apk
+          if-no-files-found: error
