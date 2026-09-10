@@ -22,6 +22,7 @@ jobs:
 
       - name: Preparar projeto
         run: |
+          rm -rf /tmp/outbreak
           mkdir -p /tmp/outbreak
 
           unzip -q OUTBREAK_ULTIMO_SOBREVIVENTE_Godot.zip -d /tmp/outbreak
@@ -37,6 +38,18 @@ jobs:
 
           cp export_presets.cfg "$PROJECT_DIR/export_presets.cfg"
 
+          # Gera APK assinado com a chave de debug do container.
+          sed -i 's|^package/signed=.*|package/signed=true|' "$PROJECT_DIR/export_presets.cfg"
+
+          # Correção principal: no Godot 4.3, exportação Android exige ETC2/ASTC habilitado.
+          if grep -q '^textures/vram_compression/import_etc2_astc=' "$PROJECT_DIR/project.godot"; then
+            sed -i 's|^textures/vram_compression/import_etc2_astc=.*|textures/vram_compression/import_etc2_astc=true|' "$PROJECT_DIR/project.godot"
+          elif grep -q '^\[rendering\]$' "$PROJECT_DIR/project.godot"; then
+            sed -i '/^\[rendering\]$/a textures/vram_compression/import_etc2_astc=true' "$PROJECT_DIR/project.godot"
+          else
+            printf '\n[rendering]\ntextures/vram_compression/import_etc2_astc=true\n' >> "$PROJECT_DIR/project.godot"
+          fi
+
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
       - name: Configurar Godot para Android
@@ -47,7 +60,6 @@ jobs:
           cp -a /root/.config/godot ~/.config/godot
 
           mkdir -p ~/.local/share/godot/export_templates
-
           rm -rf ~/.local/share/godot/export_templates/4.3.stable
 
           cp -a \
@@ -56,6 +68,7 @@ jobs:
 
           test -f ~/.config/godot/editor_settings-4.3.tres
           test -d ~/.local/share/godot/export_templates/4.3.stable
+          test -f /root/debug.keystore
 
           echo "Ambiente Godot Android preparado."
 
@@ -63,11 +76,7 @@ jobs:
         run: |
           export ANDROID_HOME="/usr/lib/android-sdk"
           export ANDROID_SDK_ROOT="/usr/lib/android-sdk"
-
           export PATH="$ANDROID_HOME/cmdline-tools/cmdline-tools/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
-
-          echo "ANDROID_HOME=$ANDROID_HOME"
-          echo "Instalando componentes Android necessários..."
 
           yes | sdkmanager --licenses >/dev/null || true
 
@@ -79,12 +88,6 @@ jobs:
 
           echo "Android SDK configurado."
 
-          echo "Build Tools instalados:"
-          ls -d "$ANDROID_HOME/build-tools/"* || true
-
-          echo "Plataformas instaladas:"
-          ls -d "$ANDROID_HOME/platforms/"* || true
-
       - name: Verificar configuração Android
         run: |
           cd "$PROJECT_DIR"
@@ -92,17 +95,18 @@ jobs:
           export ANDROID_HOME="/usr/lib/android-sdk"
           export ANDROID_SDK_ROOT="/usr/lib/android-sdk"
 
-          echo "Verificando projeto..."
-
           test -f project.godot
           test -f export_presets.cfg
 
           grep -q 'name="Android"' export_presets.cfg
           grep -q 'gradle_build/use_gradle_build=false' export_presets.cfg
           grep -q 'architectures/arm64-v8a=true' export_presets.cfg
+          grep -q '^package/signed=true$' export_presets.cfg
+          grep -q '^textures/vram_compression/import_etc2_astc=true$' project.godot
 
           test -d "$ANDROID_HOME/build-tools/34.0.0"
           test -d "$ANDROID_HOME/platforms/android-34"
+          test -f /root/debug.keystore
 
           echo "Configuração Android OK."
 
@@ -112,8 +116,12 @@ jobs:
 
           export ANDROID_HOME="/usr/lib/android-sdk"
           export ANDROID_SDK_ROOT="/usr/lib/android-sdk"
+          export JAVA_HOME="/usr/lib/jvm/java-17-openjdk-amd64"
+          export PATH="$JAVA_HOME/bin:$ANDROID_HOME/cmdline-tools/cmdline-tools/bin:$ANDROID_HOME/platform-tools:$PATH"
 
-          export PATH="$ANDROID_HOME/cmdline-tools/cmdline-tools/bin:$ANDROID_HOME/platform-tools:$PATH"
+          export GODOT_ANDROID_KEYSTORE_DEBUG_PATH="/root/debug.keystore"
+          export GODOT_ANDROID_KEYSTORE_DEBUG_USER="androiddebugkey"
+          export GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD="android"
 
           mkdir -p build/android
 
@@ -131,10 +139,7 @@ jobs:
         run: |
           cd "$PROJECT_DIR"
 
-          if [ ! -f "build/android/OUTBREAK_ULTIMO_SOBREVIVENTE.apk" ]; then
-            echo "ERRO: APK não foi gerado."
-            exit 1
-          fi
+          test -f "build/android/OUTBREAK_ULTIMO_SOBREVIVENTE.apk"
 
           echo "========================================"
           echo "APK GERADO COM SUCESSO!"
